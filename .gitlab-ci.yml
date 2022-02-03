@@ -1,0 +1,68 @@
+---
+stages:
+  - build
+  - deploy
+
+build project:
+  stage: build
+  image: node:14.16.0
+  script:
+    - cd frontend/booking
+    - npm install
+    - npm run build
+  artifacts:
+    paths:
+      - frontend/booking/build
+
+deploy project:
+  stage: deploy
+  image: 
+    name: amazon/aws-cli
+    entrypoint: [""]
+  script:
+    - pwd
+    - ls
+    - cd /infra/
+    - echo "Deploying started..."
+    - ssh -o StrictHostKeyChecking=no ubuntu@18.231.168.228 "sudo systemctl stop consoleapp.service"
+    - scp -o StrictHostKeyChecking=no /frontend/booking/build/* ubuntu@18.231.168.228:~/var/www/html/
+    - ssh -o StrictHostKeyChecking=no ubuntu@15.228.13.234 "sudo systemctl start consoleapp.service"
+    - echo "Finished deploying the frontend app."
+---
+stages:
+  - build
+  - deploy
+build project:
+  stage: build
+  image: maven
+  script:
+    - cd backend/BookingDigital
+    - echo "Building app..."
+    - mvn clean install package
+    - echo "Finished building the app."
+  artifacts:
+    paths:
+      - backend/BookingDigital/target/digital-booking-api-0.0.1-SNAPSHOT.jar
+  only:
+    - backend
+
+deploy:
+  stage: deploy
+  image: alpine
+  before_script:
+    - apk update
+    - apk upgrade
+    - apk add bash
+    - apk add openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+  script:
+    - echo "Deploying started..."
+    - ssh -o StrictHostKeyChecking=no ubuntu@15.228.13.234 "sudo systemctl stop consoleapp.service"
+    - scp -o StrictHostKeyChecking=no backend/BookingDigital/target/digital-booking-api-0.0.1-SNAPSHOT.jar ubuntu@15.228.13.234:~/digitalbooking
+    - ssh -o StrictHostKeyChecking=no ubuntu@15.228.13.234 "sudo systemctl start consoleapp.service"
+    - echo "Finished deploying the backend app."
+  only:
+    - backend
